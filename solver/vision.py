@@ -35,7 +35,8 @@ class VisionClient:
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": content}],
-            "temperature": 0.0,  # deterministic for grid answers
+            "temperature": 0.0,
+            "stream": False,  # 9router returns SSE by default — force non-stream
         }
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -54,16 +55,17 @@ class VisionClient:
     def chat_json(self, prompt: str, image_path: str | None = None) -> dict:
         """Ask model to return strict JSON; parse tolerant."""
         out = self.chat(prompt + "\nReturn ONLY valid JSON, no markdown.", image_path)
-        # strip ```json fences
         out = out.strip()
         if out.startswith("```"):
             out = out.split("```", 2)[1].strip()
-        try:
-            return json.loads(out)
-        except Exception:
-            # extract first {...}
-            start = out.find("{")
-            end = out.rfind("}")
-            if start != -1 and end > start:
-                return json.loads(out[start:end + 1])
-            raise VisionError(f"could not parse JSON from: {out[:200]}")
+        # cari FIRST { ... } block (model kadang nambah teks setelah json)
+        start = out.find("{")
+        end = out.rfind("}")
+        if start != -1 and end > start:
+            block = out[start:end + 1]
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+        # fallback: raw_parse
+        raise VisionError(f"could not parse JSON from: {out[:200]}")
