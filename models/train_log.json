@@ -1,0 +1,124 @@
+{
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 0.3267,
+      "val_loss": 0.5431,
+      "f1_macro": 0.0,
+      "f1_per_class": {
+        "bicycle": 0.0,
+        "bus": 0.0,
+        "car": 0.0,
+        "crosswalk": 0.0,
+        "hydrant": 0.0
+      },
+      "elapsed_s": 851.9
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2289,
+      "val_loss": 0.1961,
+      "f1_macro": 0.8508,
+      "f1_per_class": {
+        "bicycle": 0.9062,
+        "bus": 0.8175,
+        "car": 0.7042,
+        "crosswalk": 0.8759,
+        "hydrant": 0.95
+      },
+      "elapsed_s": 1102.6
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.1941,
+      "val_loss": 0.1791,
+      "f1_macro": 0.8532,
+      "f1_per_class": {
+        "bicycle": 0.9146,
+        "bus": 0.8486,
+        "car": 0.7051,
+        "crosswalk": 0.8598,
+        "hydrant": 0.9379
+      },
+      "elapsed_s": 859.0
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.1689,
+      "val_loss": 0.16,
+      "f1_macro": 0.8746,
+      "f1_per_class": {
+        "bicycle": 0.9132,
+        "bus": 0.8641,
+        "car": 0.7545,
+        "crosswalk": 0.8978,
+        "hydrant": 0.9437
+      },
+      "elapsed_s": 955.3
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.1464,
+      "val_loss": 0.1375,
+      "f1_macro": 0.8962,
+      "f1_per_class": {
+        "bicycle": 0.925,
+        "bus": 0.9008,
+        "car": 0.7879,
+        "crosswalk": 0.8986,
+        "hydrant": 0.969
+      },
+      "elapsed_s": 830.5
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.1316,
+      "val_loss": 0.1295,
+      "f1_macro": 0.906,
+      "f1_per_class": {
+        "bicycle": 0.9379,
+        "bus": 0.9019,
+        "car": 0.8059,
+        "crosswalk": 0.9107,
+        "hydrant": 0.9735
+      },
+      "elapsed_s": 1034.7
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.1178,
+      "val_loss": 0.1238,
+      "f1_macro": 0.9118,
+      "f1_per_class": {
+        "bicycle": 0.9438,
+        "bus": 0.9099,
+        "car": 0.8107,
+        "crosswalk": 0.9136,
+        "hydrant": 0.9811
+      },
+      "elapsed_s": 875.1
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.11,
+      "val_loss": 0.1191,
+      "f1_macro": 0.9143,
+      "f1_per_class": {
+        "bicycle": 0.9442,
+        "bus": 0.9113,
+        "car": 0.8208,
+        "crosswalk": 0.916,
+        "hydrant": 0.9794
+      },
+      "elapsed_s": 922.3
+    }
+  ],
+  "labels": [
+    "bicycle",
+    "bus",
+    "car",
+    "crosswalk",
+    "hydrant"
+  ],
+  "model": "MobileNetV3-Small"
+}
