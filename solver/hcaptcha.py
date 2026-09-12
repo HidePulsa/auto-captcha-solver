@@ -15,22 +15,25 @@ from .vision import VisionClient
 
 log = logging.getLogger("solver.hcaptcha")
 
-GRID_PROMPT = """You are solving an hCaptcha challenge image grid. Study the screenshot carefully.
+GRID_PROMPT = """You are solving an hCaptcha challenge. Study the screenshot carefully.
 
-STEP 1: Find the task instruction text (at the top of the challenge popup window).
-STEP 2: Count all image tiles in the grid (usually 3x3=9 tiles, but can be different).
-STEP 3: Look at EACH tile carefully and identify which ones satisfy the task.
-STEP 4: Number tiles LEFT→RIGHT, TOP→BOTTOM starting from 0.
+STEP 1: Find the task instruction text at the top of the challenge popup.
+STEP 2: Determine the challenge TYPE:
+  - TYPE A: 3x3 grid of 9 small images → tiles indexed 0-8 (row-major, 0=top-left)
+  - TYPE B: Single large image with multiple elements → specify which region (tile index within imagined 3x3)
+  - TYPE C: Select 1 correct option from several images side-by-side
 
-For "click the character who jumps the HIGHEST" → pick the tile where the character/figure is at the HIGHEST vertical position or jumping the most.
-For "click the character who jumps the LOWEST" → pick the tile where the character is at the LOWEST vertical position.
-For "find animals (1x tiger, 1x bear)" → find tiles with exactly a tiger and a bear.
-For standard object detection → select all tiles containing the requested object.
+STEP 3: Identify which tile(s) satisfy the task.
 
-Return ONLY JSON (absolutely no markdown, no explanation):
-{"task": "exact task text", "grid": "3x3", "cells": [2]}
+EXAMPLES:
+- "Click on frogs" in 3x3 grid with frogs in tiles 2,5 → {"task":"click frogs","grid":"3x3","cells":[2,5]}
+- "Click the frog jumping highest" in single image with 3 frogs → {"task":"...","grid":"3x3","cells":[1]} (frog in center-top)
+- "Click correct shadow" single image → {"task":"...","grid":"single","cells":[0]}
 
-cells = list of 0-based tile indices that match the task."""
+Return ONLY JSON (no markdown, no explanation):
+{"task": "exact task text", "grid": "3x3", "cells": [0, 4]}
+
+cells = 0-based tile indices that match the task. For single-image, use position within imagined 3x3."""
 
 
 class HcaptchaSolver:
@@ -181,40 +184,67 @@ class HcaptchaSolver:
         return None
 
     def _click_tile(self, page, ch, cell):
-        """Click tile inside hCaptcha challenge. Primary: frame locator. Fallback: coord."""
+        """Click tile inside hCaptcha challenge via Canvas coordinates."""
         row, col = divmod(cell, 3)
 
-        # Try frame locator first
+        # Primary: klik via Canvas koordinat dalam challenge frame
         try:
             for fr in page.frames:
                 if "challenge" in fr.url and "hcaptcha" in fr.url:
-                    # Try both .option and canvas click
-                    tiles = fr.query_selector_all("div.option")
-                    if tiles and cell < len(tiles):
-                        try:
-                            tiles[cell].click(timeout=3000, force=True)
-                            log.info("tile %d via .option force click", cell)
-                            return
-                        except Exception:
-                            # try direct JS click
-                            fr.evaluate(f"() => {{ const tiles = document.querySelectorAll('div.option'); if(tiles[{cell}]) tiles[{cell}].click(); }}")
-                            log.info("tile %d via .option JS click", cell)
-                            return
+                    # dapatkan canvas bounds
+                    canvas_info = fr.evaluate("""() => {
+                        const cv = document.querySelector('canvas[role="img"], canvas');
+                        if (!cv) return null;
+                        const r = cv.getBoundingClientRect();
+                        return {x:r.left, y:r.top, w:r.width, h:r.height};
+                    }""")
+
+                    if canvas_info and canvas_info["w"] > 0:
+                        cv = canvas_info
+                        # Canvas layout hCaptcha:
+                        # ~top 15%: prompt/task text
+                        # ~15-90%: image grid (3x3 atau 4x4)
+                        # ~90-100%: footer
+                        grid_top = cv["y"] + cv["h"] * 0.15
+                        grid_h   = cv["h"] * 0.75
+                        grid_w   = cv["w"]
+
+                        # x offset: small margin ~5%
+                        cx = cv["x"] + grid_w * (col + 0.5) / 3
+                        cy = grid_top + grid_h * (row + 0.5) / 3
+
+                        log.info("canvas click tile %d (r%d,c%d) -> frame(%.0f,%.0f) canvas=%dx%d",
+                                 cell, row, col, cx, cy, cv["w"], cv["h"])
+
+                        # klik di canvas frame coordinates via dispatchEvent
+                        fr.evaluate("""(args) => {
+                            const cv = document.querySelector('canvas[role="img"], canvas');
+                            if (!cv) return;
+                            const x = args[0], y = args[1];
+                            const opts = {bubbles:true, cancelable:true, clientX:x, clientY:y};
+                            cv.dispatchEvent(new MouseEvent('mousemove', opts));
+                            cv.dispatchEvent(new MouseEvent('mousedown', opts));
+                            cv.dispatchEvent(new MouseEvent('mouseup', opts));
+                            cv.dispatchEvent(new MouseEvent('click', opts));
+                        }""", [cx, cy])
+                        time.sleep(0.5)
+                        return
+                    else:
+                        log.warning("canvas not found or zero size: %s", canvas_info)
         except Exception as e:
-            log.warning("frame tile click err: %s", str(e)[:80])
+            log.warning("canvas click err: %s", str(e)[:80])
 
-        # Fallback: coordinate click
-        header_frac = 0.28
-        grid_frac = 0.64
-        margin_x = 0.04
+        # Fallback: coordinate click via page mouse (viewport coords)
+        header_frac = 0.15
+        grid_frac   = 0.75
+        margin_x    = 0.02
 
-        gx = ch["x"] + ch["w"] * margin_x + ch["w"] * (1 - 2 * margin_x) * (col + 0.5) / 3
+        gx = ch["x"] + ch["w"] * margin_x + ch["w"] * (1 - 2*margin_x) * (col + 0.5) / 3
         gy = ch["y"] + ch["h"] * header_frac + ch["h"] * grid_frac * (row + 0.5) / 3
-        # clamp to challenge bounds
         gx = max(ch["x"] + 10, min(ch["x"] + ch["w"] - 10, gx))
         gy = max(ch["y"] + 10, min(ch["y"] + ch["h"] - 10, gy))
 
-        log.info("coord click tile %d -> (%.0f,%.0f)", cell, gx, gy)
+        log.info("viewport coord click tile %d -> (%.0f,%.0f)", cell, gx, gy)
         page.mouse.move(gx - 2, gy - 2)
         time.sleep(0.15)
         page.mouse.click(gx, gy)
